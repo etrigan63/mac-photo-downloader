@@ -39,12 +39,16 @@ FOLDER_PATTERN="%Y/%Y-%m-%d"
 COUNTER_DIGITS=4
 COUNTER_START=1
 COUNTER_PER_MODEL=yes
-PHOTO_EXTS="jpg jpeg jpe tif tiff nef cr2 cr3 arw dng orf rw2 raf pef srf sr2 rwl raw heic heif png gif bmp"
+NUMBER_SOURCE="exif"
+PHOTO_EXTS="jpg jpeg jpe tif tiff nef cr2 cr3 arw dng orf rw2 raf pef srf sr2 rwl raw heic heif hif png gif bmp"
 VIDEO_EXTS="mp4 mov m4v avi mts m2ts 3gp mod"
 SD_CARD="auto"
 LOG_FILE=""
+EJECT_CARD=yes
+NOTIFY=yes
 
 DRY_RUN=no
+NO_EJECT=no
 ARG_CARD=""
 ARG_CARDS=()
 
@@ -54,7 +58,18 @@ ARG_CARDS=()
 # ---------------------------------------------------------------------------
 log() { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; [ -z "$LOG_FILE" ] || printf '[%s] %s\n' "$(date '+%F %T')" "$*" >>"$LOG_FILE" 2>/dev/null; }
 
-die() { log "ERROR: $*" >&2; exit 1; }
+# Status banner via Notification Center (used when running from Stream Deck
+# or any context with no visible terminal). Enabled by NOTIFY=yes.
+notify() {
+  [ "$NOTIFY" = "yes" ] || return 0
+  [ "$DRY_RUN" = yes ] && return 0
+  local msg="$*"
+  msg="${msg//\\/\\\\}"
+  msg="${msg//\"/\\\"}"
+  osascript -e "display notification \"$msg\" with title \"SD Photo Downloader\"" 2>/dev/null
+}
+
+die() { log "ERROR: $*" >&2; notify "Failed: $*"; exit 1; }
 
 expand_home() { case "$1" in "~/"*) printf '%s/%s' "$HOME" "${1#\~/}";; *) printf '%s' "$1";; esac; }
 
@@ -65,6 +80,7 @@ usage() {
   echo "  -c, --config FILE   use FILE instead of the default config"
   echo "  --card PATH         import from PATH (repeatable, or Automator folder input)"
   echo "  --dry-run           preview actions (renames/copies) without writing files"
+  echo "  --no-eject          do not eject the card when done"
   echo "  -h, --help          show this help"
 }
 
@@ -125,7 +141,7 @@ fmt_subdir() {
 load_config() {
   [ -f "$CONFIG_FILE" ] || die "config not found: $CONFIG_FILE"
   local line key val
-  while IFS= read -r line; do
+  while IFS= read -r line || [ -n "$line" ]; do
     [ -z "$line" ] && continue
     [[ "$line" == \#* ]] && continue
     [[ "$line" == *"="* ]] || continue
@@ -142,10 +158,13 @@ load_config() {
       COUNTER_DIGITS)     COUNTER_DIGITS=$val;;
       COUNTER_START)      COUNTER_START=$val;;
       COUNTER_PER_MODEL)  COUNTER_PER_MODEL="$val";;
+      NUMBER_SOURCE)      case "$val" in exif|counter) NUMBER_SOURCE="$val";; esac;;
       PHOTO_EXTS)         PHOTO_EXTS="$val";;
       VIDEO_EXTS)         VIDEO_EXTS="$val";;
       SD_CARD)            SD_CARD="$val";;
+      EJECT_CARD)         case "$val" in yes|YES|true|1) EJECT_CARD=yes;; *) EJECT_CARD=no;; esac;;
       LOG_FILE)           LOG_FILE="$(expand_home "$val")";;
+      NOTIFY)             case "$val" in yes|YES|true|1) NOTIFY=yes;; *) NOTIFY=no;; esac;;
     esac
   done <"$CONFIG_FILE"
 
@@ -217,6 +236,18 @@ mtime_datetime() { # file -> "YYYY:MM:DD HH:MM:SS" from fs metadata
   stat -f '%Sm' -t '%Y:%m:%d %H:%M:%S' "$1"
 }
 
+# Camera image shot number, taken from the digits immediately preceding the
+# extension in the EXIF FileName tag (e.g. "_DSF5099.RAF" -> "5099"). This is
+# the number the camera burns into both the RAW and the HEIF of a pair.
+exif_number() { # file -> digits only, no padding
+  local n
+  n="$(exif_field FileName "$1")"
+  [ -n "$n" ] || return 0
+  n="${n%.*}"              # strip extension
+  n="${n##*[^0-9]}"        # keep the trailing run of digits
+  [ -n "$n" ] && printf '%s' "$n"
+}
+
 
 # ---------------------------------------------------------------------------
 # Image number (counter) bookkeeping
@@ -263,7 +294,8 @@ bump_counter() {
 # ---------------------------------------------------------------------------
 main() {
   local f ext h exif_dt year month day hh min ss model
-  local token key num numpad name target backup copy_count skip_count notify
+  local token key num numpad name target backup copy_count skip_count
+  local exifnum used_counter prev prevrel
   copy_count=0; skip_count=0
 
   cd "$HOME" || true   # cd out of /Volumes so the card can be unmounted
@@ -296,17 +328,13 @@ main() {
   log "Target:    $TARGET_DIR"
   [ -n "$BACKUP_DIR" ] && log "Backup:    $BACKUP_DIR"
   log "Scanning for photos/videos..."
+  notify "Importing from $(basename "$SD_PATH")..."
 
   while IFS= read -r f; do
     ext="${f##*.}"; ext="$(printf '%s' "$ext" | tr '[:upper:]' '[:lower:]')"
 
     h="$(md5 -q "$f" 2>/dev/null)"
     [ -z "$h" ] && h="$(shasum "$f" 2>/dev/null | cut -d' ' -f1)"
-    if [ -n "$h" ] && grep -Fxq "$h" "$WORK_LEDGER" 2>/dev/null; then
-      skip_count=$((skip_count + 1))
-      log "skip     (already imported): $(basename -- "$f")"
-      continue
-    fi
 
     exif_dt="$(exif_datetime "$f" || mtime_datetime "$f")"
 
@@ -320,8 +348,19 @@ main() {
     token="$(sanitize_token "$model")"
 
     if [ "$COUNTER_PER_MODEL" = "yes" ]; then key="$token"; else key="ALL"; fi
-    num="$(next_number "$token" "$key")"
-    numpad="$(printf "%0*d" "$COUNTER_DIGITS" "$num")"
+
+    # Image number: from EXIF by default (pairs share it), else sequential counter.
+    exifnum=""
+    if [ "$NUMBER_SOURCE" = "exif" ]; then exifnum="$(exif_number "$f")"; fi
+    numpad=""
+    used_counter=no
+    if [ -n "$exifnum" ]; then
+      numpad="$(printf "%0*d" "$COUNTER_DIGITS" "$exifnum")"
+    else
+      num="$(next_number "$token" "$key")"
+      numpad="$(printf "%0*d" "$COUNTER_DIGITS" "$num")"
+      used_counter=yes
+    fi
     name="${token}-${year}${month}${day}-${numpad}.${ext}"
 
     target="$TARGET_DIR/$SUBDIR/$name"
@@ -331,6 +370,20 @@ main() {
       skip_count=$((skip_count + 1))
       log "skip     (already imported): $name"
       continue
+    fi
+
+    # Content-ledger dedup: skip only if the copy we recorded still exists in
+    # the library. Deleted files re-import on the next run.
+    if [ -n "$h" ]; then
+      prev="$(grep -F "$h" "$WORK_LEDGER" 2>/dev/null | tail -n 1)"
+      if [ -n "$prev" ]; then
+        prevrel="${prev#*$'\t'}"
+        if [ "$prevrel" != "$prev" ] && [ -e "$TARGET_DIR/$prevrel" ]; then
+          skip_count=$((skip_count + 1))
+          log "skip     (already imported and still in library): $name"
+          continue
+        fi
+      fi
     fi
 
     log "import   $name"
@@ -344,8 +397,8 @@ main() {
         mkdir -p "$(dirname -- "$backup")"
         [ -e "$backup" ] || cp -p "$f" "$backup" || log "WARN: backup copy failed for $name"
       fi
-      bump_counter "$key" "$((num + 1))"
-      [ -n "$h" ] && printf '%s\n' "$h" >>"$WORK_LEDGER"
+      [ "$used_counter" = yes ] && bump_counter "$key" "$((num + 1))"
+      [ -n "$h" ] && printf '%s\t%s\n' "$h" "${target#$TARGET_DIR/}" >>"$WORK_LEDGER"
     fi
     copy_count=$((copy_count + 1))
   done < <(find "$SD_PATH" -type f "${name_args[@]}" 2>/dev/null | sort)
@@ -356,8 +409,30 @@ main() {
   if [ "$DRY_RUN" = yes ]; then
     log "DRY RUN - no files were written."
   else
-    notify="Downloaded $copy_count photos" && osascript -e "display notification \"$notify\" with title \"SD Photo Downloader\"" 2>/dev/null
+    notify "Done: $copy_count imported, $skip_count skipped."
+    maybe_eject
   fi
+}
+
+# Eject the card once the import finished without errors.
+maybe_eject() {
+  [ "$EJECT_CARD" = "yes" ] || { log "Eject skipped (EJECT_CARD=$EJECT_CARD)."; return 0; }
+  if [ "$DRY_RUN" = yes ]; then
+    log "DRY RUN - would eject $SD_PATH"
+    return 0
+  fi
+  case "$SD_PATH" in
+    /Volumes/*)
+      if diskutil eject "$SD_PATH" >/dev/null 2>&1; then
+        log "Ejected $SD_PATH"
+      else
+        log "WARN: could not eject $SD_PATH (not a mountable volume?)"
+      fi
+      ;;
+    *)
+      log "Not ejecting non-volume path: $SD_PATH"
+      ;;
+  esac
 }
 
 
@@ -369,6 +444,7 @@ while [ $# -gt 0 ]; do
     -c|--config) [ $# -ge 2 ] || die "--config needs a file argument"; CONFIG_FILE="$2"; shift 2;;
     --card)      [ $# -ge 2 ] || die "--card needs a path argument"; ARG_CARD="$2"; shift 2;;
     --dry-run)   DRY_RUN=yes; shift;;
+    --no-eject)  NO_EJECT=yes; shift;;
     -h|--help)   usage; exit 0;;
     -*)          die "unknown option: $1 (see --help)";;
     *)           ARG_CARD="$1"; shift;;   # Automator passes dropped folders here
@@ -383,4 +459,5 @@ if [ -z "$ARG_CARD" ] && [ ! -t 0 ]; then
 fi
 
 load_config
+[ "$NO_EJECT" = yes ] && EJECT_CARD=no
 main

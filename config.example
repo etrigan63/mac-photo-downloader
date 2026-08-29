@@ -37,18 +37,27 @@ STATE_DIR=~/Library/Application Support/SD Photo Downloader
 #   {YYYY}/{YYYY}-{MM}-{DD}  ->  2026/2026-08-29
 FOLDER_PATTERN=%Y/%Y-%m-%d
 
-# Image number is zero-padded to this many digits: 0001, 0002, ...
+# Image number is zero-padded to this many digits: 0001, 0002, ...,
+# or 5099 for a shot number already that large.
 COUNTER_DIGITS=4
 
 # First image number to use if no counter exists yet.
 COUNTER_START=1
+
+# Where the "<image number>" part of the filename comes from:
+#   exif    -> the digits immediately before the extension in the camera
+#              file name ("_DSF5099.RAF" gives 5099). The RAW and HEIF of a
+#              pair carry the same digits, so both cards stay in sync.
+#   counter -> sequential number tracked by this tool (per model or shared).
+# Files with no trailing digits in their name always fall back to the counter.
+NUMBER_SOURCE=exif
 
 # Track a separate number sequence per camera model (yes) or one shared
 # sequence across all cameras (no).
 COUNTER_PER_MODEL=yes
 
 # File extensions to look for on the card (space separated).
-PHOTO_EXTS="jpg jpeg jpe tif tiff nef cr2 cr3 arw dng orf rw2 raf pef srf sr2 rwl raw heic heif png gif bmp"
+PHOTO_EXTS="jpg jpeg jpe tif tiff nef cr2 cr3 arw dng orf rw2 raf pef srf sr2 rwl raw heic heif hif png gif bmp"
 VIDEO_EXTS="mp4 mov m4v avi mts m2ts 3gp mod"
 
 # Where to look for the card:
@@ -60,3 +69,11 @@ SD_CARD=auto
 
 # Log file for all runs. Defaults to $STATE_DIR/run.log.
 LOG_FILE=~/Library/Application Support/SD Photo Downloader/run.log
+
+# Eject the card automatically when a run finishes successfully.
+# The --no-eject flag overrides this for a single run.
+EJECT_CARD=yes
+
+# Show status banners in Notification Center (start, result, errors).
+# Handy when running from a Stream Deck button with no visible terminal.
+NOTIFY=yes
