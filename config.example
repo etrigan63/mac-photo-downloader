@@ -1,0 +1,62 @@
+# SD Photo Downloader - configuration
+# ---------------------------------------------------------------
+# Copy this file to a location of your choice and select it, or install it to:
+#
+#     ~/Library/Application Support/SD Photo Downloader/config
+#
+# The script looks for the config in this order:
+#   1. --config FILE on the command line
+#   2. $SD_CARD_DOWNLOADER_CONFIG
+#   3. ./config (directory the script lives in)
+#   4. the install location above
+#
+# Format: KEY=VALUE, one per line. Lines starting with # are comments.
+# Values may be wrapped in double or single quotes. "~/" is expanded.
+
+# Where imported photos go. Date subfolders (see FOLDER_PATTERN) are
+# created under this directory automatically.
+TARGET_DIR=~/Pictures/SD-Photos
+
+# Optional second destination: files are also copied here under the same
+# date subfolder structure, using the same renamed filenames as TARGET_DIR.
+# Leave empty to disable backup.
+BACKUP_DIR=/Volumes/BackupDrive/Photos
+
+# Path to exiftool. If empty/unset, the script checks your PATH first,
+# then /opt/homebrew/bin/exiftool, then /usr/local/bin/exiftool.
+EXIFTOOL=/opt/homebrew/bin/exiftool
+
+# Where per-camera image-number counters and the run log are kept.
+STATE_DIR=~/Library/Application Support/SD Photo Downloader
+
+# Subfolder pattern inside TARGET_DIR / BACKUP_DIR.
+# Supports exiftool style (%Y, %m, %d ...) and brace style ({YYYY}, ...).
+# Examples:
+#   %Y/%Y-%m-%d              ->  2026/2026-08-29   (default)
+#   %Y/%m/%d                 ->  2026/08/29
+#   {YYYY}/{YYYY}-{MM}-{DD}  ->  2026/2026-08-29
+FOLDER_PATTERN=%Y/%Y-%m-%d
+
+# Image number is zero-padded to this many digits: 0001, 0002, ...
+COUNTER_DIGITS=4
+
+# First image number to use if no counter exists yet.
+COUNTER_START=1
+
+# Track a separate number sequence per camera model (yes) or one shared
+# sequence across all cameras (no).
+COUNTER_PER_MODEL=yes
+
+# File extensions to look for on the card (space separated).
+PHOTO_EXTS="jpg jpeg jpe tif tiff nef cr2 cr3 arw dng orf rw2 raf pef srf sr2 rwl raw heic heif png gif bmp"
+VIDEO_EXTS="mp4 mov m4v avi mts m2ts 3gp mod"
+
+# Where to look for the card:
+#   auto            -> find the volume under /Volumes that has a DCIM folder
+#   /Volumes/CANON  -> always use this mount point
+# The --card argument (or a folder dropped on the Automator action)
+# overrides this.
+SD_CARD=auto
+
+# Log file for all runs. Defaults to $STATE_DIR/run.log.
+LOG_FILE=~/Library/Application Support/SD Photo Downloader/run.log
