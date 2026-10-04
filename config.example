@@ -77,3 +77,21 @@ EJECT_CARD=yes
 # Show status banners in Notification Center (start, result, errors).
 # Handy when running from a Stream Deck button with no visible terminal.
 NOTIFY=yes
+
+# While importing, refresh the banner every N percent (0 = only start/finish).
+NOTIFY_PROGRESS=25
+
+# Draw an in-place progress bar in the terminal. Only shown when stdout is a
+# terminal, so log files and piped output stay clean.
+PROGRESS_BAR=yes
+
+# Machine-readable progress state, rewritten after every file. Useful for
+# Shortcuts, menu bar tools, or scripts that want to show live progress:
+#   status=running|done|error pct=NN done=N total=N message=...
+# Defaults to $STATE_DIR/progress.txt.
+PROGRESS_FILE=~/Library/Application Support/SD Photo Downloader/progress.txt
+
+# Read EXIF metadata in a single batched pass instead of one exiftool process
+# per tag per file (roughly 5x faster end to end). If python3 is missing or the
+# batch pass fails, it falls back to per-file reads automatically.
+EXIF_BATCH=yes

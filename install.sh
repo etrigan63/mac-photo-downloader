@@ -3,6 +3,7 @@
 #
 # Installs SD Photo Downloader for the current user:
 #   * copies sd-photo-download.sh to ~/.sd-photo-downloader/
+#   * builds the native sd-photo-download binary there (needs swiftc)
 #   * creates ~/.sd-photo-downloader/config from config.example on first run
 #   * copies the Automator Quick Action to ~/Library/Services/
 #
@@ -25,6 +26,16 @@ mkdir -p "$DEST"
 cp -f "$SRC_DIR/sd-photo-download.sh" "$DEST/"
 chmod +x "$DEST/sd-photo-download.sh"
 
+# Native build: same behaviour, progress window instead of a terminal bar.
+if command -v swiftc >/dev/null 2>&1; then
+  swiftc -O -o "$DEST/sd-photo-download" "$SRC_DIR/sd-photo-download.swift"
+  chmod +x "$DEST/sd-photo-download"
+  echo "Installed native binary: $DEST/sd-photo-download"
+else
+  echo "swiftc not found - skipping the native build (shell version still installed)."
+  echo "  Install the Xcode Command Line Tools with: xcode-select --install"
+fi
+
 if [ ! -f "$DEST/config" ]; then
   cp "$SRC_DIR/config.example" "$DEST/config"
   echo "Created $DEST/config - edit TARGET_DIR/BACKUP_DIR before your first run."
@@ -43,3 +54,5 @@ echo "  2. Register the Quick Action, then click Install when prompted:"
 echo "     open \"$SERVICES/SD Photo Downloader.workflow\""
 echo "  3. Test without writing anything:"
 echo "     $DEST/sd-photo-download.sh --dry-run"
+echo "     $DEST/sd-photo-download --dry-run --gui"
+echo "  4. Optional: build the Stream Deck app with ./build-app.sh"

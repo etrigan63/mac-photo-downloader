@@ -1,29 +1,45 @@
 #!/bin/bash
 # build-app.sh [TARGET_APP]
 #
-# Builds a standalone, double-clickable "SD Photo Downloader.app" Automator
-# Application from the existing import script. Stream Deck can launch it with
-# a plain "Open" button (no third-party plugins needed).
+# Builds a native "SD Photo Downloader.app" from sd-photo-download.swift.
+# Launching it (Finder double-click, Stream Deck "Open" action, Shortcuts)
+# imports from the auto-detected card and shows the progress window.
 #
-# The app runs the workflow, so the script must be installed first:
-#   ./install.sh
+# Requirements: Xcode Command Line Tools (swiftc) and exiftool.
+# The config is read at runtime from, in order:
+#   1. $SD_CARD_DOWNLOADER_CONFIG
+#   2. <this app>/Contents/MacOS/config        (for portable copies)
+#   3. ~/.sd-photo-downloader/config           (what install.sh creates)
+#   4. ~/Library/Application Support/SD Photo Downloader/config
 #
-# If macOS questions the app, right-click it in Finder -> Open once.
+# Extra arguments are passed through, e.g.
+#   open -Wn "SD Photo Downloader.app" --args --card /Volumes/NO_NAME --dry-run
 
 set -euo pipefail
 
 SRC_DIR="$(cd -- "$(dirname -- "$0")" && pwd)"
 APP="${1:-$SRC_DIR/SD Photo Downloader.app}"
+BIN="sd-photo-download"
 
-STUB="/System/Library/CoreServices/Automator Application Stub.app/Contents/MacOS/Automator Application Stub"
-[ -x "$STUB" ] || { echo "error: Automator Application Stub not found" >&2; exit 1; }
+command -v swiftc >/dev/null 2>&1 || {
+    echo "error: swiftc not found. Install the Xcode Command Line Tools:" >&2
+    echo "       xcode-select --install" >&2
+    exit 1
+}
 
 rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
-cp "$STUB" "$APP/Contents/MacOS/Automator Application Stub"
+# App icon: a flat blue squircle with a white SD card glyph, from the Remix
+# Icon "sd-card-fill" shape (https://remixicon.com, Apache License 2.0).
+if [ -f "$SRC_DIR/resources/AppIcon.icns" ]; then
+    cp -f "$SRC_DIR/resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
+fi
 
-cat > "$APP/Contents/PkgInfo" <<EOF
+echo "Compiling $BIN..."
+swiftc -O -o "$APP/Contents/MacOS/$BIN" "$SRC_DIR/sd-photo-download.swift"
+
+cat > "$APP/Contents/PkgInfo" <<'EOF'
 APPL????
 EOF
 
@@ -35,114 +51,41 @@ cat > "$APP/Contents/Info.plist" <<'EOF'
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleExecutable</key>
-	<string>Automator Application Stub</string>
+	<string>sd-photo-download</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.github.mac-photo-downloader.app</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
 	<string>SD Photo Downloader</string>
+	<key>CFBundleDisplayName</key>
+	<string>SD Photo Downloader</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
-	<key>CFBundleSignature</key>
-	<string>zwrd</string>
 	<key>CFBundleShortVersionString</key>
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>13.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSHighResolutionCapable</key>
+	<true/>
 </dict>
 </plist>
 EOF
 
-cat > "$APP/Contents/document.wflow" <<'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-	<key>AMApplicationBuild</key>
-	<string>474</string>
-	<key>AMApplicationVersion</key>
-	<string>2.10</string>
-	<key>AMDocumentVersion</key>
-	<string>2</string>
-	<key>actions</key>
-	<array>
-		<dict>
-			<key>actionBundleIdentifier</key>
-			<string>com.apple.RunShellScript</string>
-			<key>actionName</key>
-			<string>Run Shell Script</string>
-			<key>arguments</key>
-			<dict>
-				<key>COMMAND_STRING</key>
-				<string>exec "$HOME/.sd-photo-downloader/sd-photo-download.sh" "$@"</string>
-				<key>inputMethod</key>
-				<dict>
-					<key>inputMode</key>
-					<integer>2</integer>
-					<key>inputType</key>
-					<integer>0</integer>
-				</dict>
-				<key>SHELL</key>
-				<string>/bin/bash</string>
-				<key>shellInputType</key>
-				<integer>1</integer>
-				<key>source</key>
-				<string></string>
-				<key>timeout</key>
-				<integer>3600</integer>
-			</dict>
-			<key>isViewExpanded</key>
-			<true/>
-			<key>isViewVisible</key>
-			<true/>
-			<key>location</key>
-			<string>1. 0. 0.</string>
-			<key>name</key>
-			<string>Run Shell Script</string>
-			<key>parameters</key>
-			<dict>
-				<key>COMMAND_STRING</key>
-				<string>exec "$HOME/.sd-photo-downloader/sd-photo-download.sh" "$@"</string>
-				<key>inputMethod</key>
-				<dict>
-					<key>inputMode</key>
-					<integer>2</integer>
-					<key>inputType</key>
-					<integer>0</integer>
-				</dict>
-				<key>SHELL</key>
-				<string>/bin/bash</string>
-				<key>shellInputType</key>
-				<integer>1</integer>
-				<key>source</key>
-				<string></string>
-				<key>timeout</key>
-				<integer>3600</integer>
-			</dict>
-			<key>requiredResources</key>
-			<array/>
-			<key>uuid</key>
-			<string>6c3f0f2d-1f9a-4d7b-9c8e-4b2a6d2f3a1e</string>
-			<key>version</key>
-			<integer>2</integer>
-		</dict>
-	</array>
-	<key>algorithms</key>
-	<array/>
-	<key>connectors</key>
-	<dict/>
-	<key>workflowMetaData</key>
-	<dict>
-		<key>workflowTypeIdentifier</key>
-		<string>com.apple.Automator.application</string>
-	</dict>
-</dict>
-</plist>
-EOF
-
-codesign --force --deep --sign - "$APP" >/dev/null 2>&1
+# Ad-hoc signature: enough for local use on Apple silicon.
+codesign --force --sign - "$APP" >/dev/null 2>&1 || \
+    echo "warning: ad-hoc codesign failed; the app may still run locally" >&2
 
 echo "Built $APP"
-echo "In Stream Deck: add an 'Open' action and choose this .app,"
+echo
+echo "Test it without writing anything:"
+echo "  open -Wn \"$APP\" --args --dry-run --no-eject"
+echo
+echo "In Stream Deck: add an 'Open' action and pick this .app,"
 echo "or copy it into ~/Applications first."
