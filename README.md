@@ -34,7 +34,7 @@ organized by EXIF date and renamed by camera model.
 ./install.sh
 ```
 
-This copies the script to `~/.sd-photo-downloader/`, builds the native binary
+This copies the script to `~/.config/sd-photo-downloader/`, builds the native binary
 next to it (if `swiftc` is available), creates a config from `config.example`
 (edit it first!), and installs the Automator action to `~/Library/Services/`.
 
@@ -42,11 +42,11 @@ You get two commands, same behaviour, pick either:
 
 | Command | Use it for |
 |---------|-----------|
-| `~/.sd-photo-downloader/sd-photo-download` | the native build: add `--gui` for a progress window |
-| `~/.sd-photo-downloader/sd-photo-download.sh` | the shell fallback, no build step needed |
+| `~/.config/sd-photo-downloader/sd-photo-download` | the native build: add `--gui` for a progress window |
+| `~/.config/sd-photo-downloader/sd-photo-download.sh` | the shell fallback, no build step needed |
 
 Both read the first config that exists: `$SD_CARD_DOWNLOADER_CONFIG`, a `config`
-next to the binary, `~/.sd-photo-downloader/config`, then
+next to the binary, `~/.config/sd-photo-downloader/config`, then
 `~/Library/Application Support/SD Photo Downloader/config`.
 
 ### The app bundle
@@ -77,7 +77,7 @@ Downloader*.
 
 ## Configuration
 
-Edit `~/.sd-photo-downloader/config` (the format is `KEY=VALUE`, see
+Edit `~/.config/sd-photo-downloader/config` (the format is `KEY=VALUE`, see
 `config.example` for every option):
 
 | Key | Purpose |
@@ -235,7 +235,7 @@ can never import a real card into a scratch library.
    - Pass input: **as arguments**
    - Command:
      ```bash
-     exec "$HOME/.sd-photo-downloader/sd-photo-download.sh" "$@"
+     exec "$HOME/.config/sd-photo-downloader/sd-photo-download.sh" "$@"
      ```
 4. Save as **SD Photo Downloader**; then right-click a card volume in Finder
    → *Quick Actions* → **SD Photo Downloader**.
@@ -262,7 +262,7 @@ the status banners (see `NOTIFY` above) report progress without a terminal.
    - Script (the action runs through a shell, so `$HOME` expands; swap in `--gui`
      for the progress window):
      ```bash
-     "$HOME/.sd-photo-downloader/sd-photo-download" --gui
+     "$HOME/.config/sd-photo-downloader/sd-photo-download" --gui
      ```
 3. Run it once from Shortcuts with a card mounted to approve the "allow
    running scripts" prompt; the action shows the script's output inline and
@@ -275,7 +275,7 @@ Notes:
 * To watch the shell version's **terminal progress bar** instead of banners,
   change the Shortcut's Run Shell Script action to open a Terminal window:
   ```bash
-  osascript -e "tell application \"Terminal\" to do script \"$HOME/.sd-photo-downloader/sd-photo-download.sh; echo; echo Finished - press Return to close this window; read\""
+  osascript -e "tell application \"Terminal\" to do script \"$HOME/.config/sd-photo-downloader/sd-photo-download.sh; echo; echo Finished - press Return to close this window; read\""
   ```
   Replace `read` with `exit` if you'd rather the window close itself when done.
 * Third-party "Run Shell Script" Stream Deck plugins often launch the command

@@ -18,7 +18,7 @@
 			<key>arguments</key>
 			<dict>
 				<key>COMMAND_STRING</key>
-				<string>exec "$HOME/.sd-photo-downloader/sd-photo-download.sh" "$@"</string>
+				<string>exec "$HOME/.config/sd-photo-downloader/sd-photo-download.sh" "$@"</string>
 				<key>inputMethod</key>
 				<dict>
 					<key>inputMode</key>
@@ -46,7 +46,7 @@
 			<key>parameters</key>
 			<dict>
 				<key>COMMAND_STRING</key>
-				<string>exec "$HOME/.sd-photo-downloader/sd-photo-download.sh" "$@"</string>
+				<string>exec "$HOME/.config/sd-photo-downloader/sd-photo-download.sh" "$@"</string>
 				<key>inputMethod</key>
 				<dict>
 					<key>inputMode</key>

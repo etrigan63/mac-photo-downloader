@@ -2,9 +2,9 @@
 # install.sh
 #
 # Installs SD Photo Downloader for the current user:
-#   * copies sd-photo-download.sh to ~/.sd-photo-downloader/
+#   * copies sd-photo-download.sh to ~/.config/sd-photo-downloader/
 #   * builds the native sd-photo-download binary there (needs swiftc)
-#   * creates ~/.sd-photo-downloader/config from config.example on first run
+#   * creates ~/.config/sd-photo-downloader/config from config.example on first run
 #   * copies the Automator Quick Action to ~/Library/Services/
 #
 # After installing, open the workflow once:
@@ -19,7 +19,7 @@
 set -euo pipefail
 
 SRC_DIR="$(cd -- "$(dirname -- "$0")" && pwd)"
-DEST="$HOME/.sd-photo-downloader"
+DEST="$HOME/.config/sd-photo-downloader"
 SERVICES="$HOME/Library/Services"
 
 mkdir -p "$DEST"

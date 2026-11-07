@@ -9,7 +9,7 @@
 # The config is read at runtime from, in order:
 #   1. $SD_CARD_DOWNLOADER_CONFIG
 #   2. <this app>/Contents/MacOS/config        (for portable copies)
-#   3. ~/.sd-photo-downloader/config           (what install.sh creates)
+#   3. ~/.config/sd-photo-downloader/config           (what install.sh creates)
 #   4. ~/Library/Application Support/SD Photo Downloader/config
 #
 # Extra arguments are passed through, e.g.

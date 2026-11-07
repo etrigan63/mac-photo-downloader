@@ -1199,7 +1199,7 @@ if configFile.isEmpty {
 if configFile.isEmpty {
     // Same search order as the shell version: next to the binary, then the
     // installer's directory, then Application Support.
-    let installed = (NSHomeDirectory() as NSString).appendingPathComponent(".sd-photo-downloader/config")
+    let installed = (NSHomeDirectory() as NSString).appendingPathComponent(".config/sd-photo-downloader/config")
     if FileManager.default.fileExists(atPath: installed) { configFile = installed }
 }
 if configFile.isEmpty {

@@ -29,7 +29,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" && pwd)"
 # ---------------------------------------------------------------------------
 CONFIG_FILE="${SD_CARD_DOWNLOADER_CONFIG:-}"
 [ -z "$CONFIG_FILE" ] && [ -f "$SCRIPT_DIR/config" ] && CONFIG_FILE="$SCRIPT_DIR/config"
-[ -z "$CONFIG_FILE" ] && [ -f "$HOME/.sd-photo-downloader/config" ] && CONFIG_FILE="$HOME/.sd-photo-downloader/config"
+[ -z "$CONFIG_FILE" ] && [ -f "$HOME/.config/sd-photo-downloader/config" ] && CONFIG_FILE="$HOME/.config/sd-photo-downloader/config"
 [ -z "$CONFIG_FILE" ] && CONFIG_FILE="$HOME/Library/Application Support/SD Photo Downloader/config"
 
 TARGET_DIR=""
