@@ -22,6 +22,20 @@ organized by EXIF date and renamed by camera model.
   library are re-imported on the next run. The card is ejected automatically
   when a run finishes successfully (`--no-eject` to keep it mounted).
 
+## Screenshots
+
+> Add screenshots to `docs/screenshots/` (e.g. `progress-window.png`,
+> `notification-banner.png`) and they will render here.
+
+| Progress window | Notification Center |
+|---|---|
+| ![Import progress window](docs/screenshots/progress-window.png) | ![Done banner](docs/screenshots/notification-banner.png) |
+
+The progress window shows the card name, target/backup paths, a live progress
+bar with the current file name and import/skip status, and a **Close** button
+that appears when the run finishes. The window closes itself five seconds after
+a completed run.
+
 ## Requirements
 
 * macOS with **exiftool** installed: `brew install exiftool`
@@ -74,6 +88,17 @@ open ~/Library/Services/"SD Photo Downloader.workflow"   # click Install
 
 Then right-click your mounted SD card in Finder → *Quick Actions* → *SD Photo
 Downloader*.
+
+### Updating
+
+```sh
+git pull
+./build-app.sh install     # rebuilds and cleanly reinstalls the .app
+```
+
+The shell script is updated in place by `git pull`; the native binary and
+`.app` must be rebuilt. `./build-app.sh install` removes the old bundle first
+and refreshes the Launch Services cache so macOS does not run a stale copy.
 
 ## Configuration
 
@@ -199,6 +224,24 @@ finished regardless of how the script was launched:
    `Importing: 75% (9/12)` every `NOTIFY_PROGRESS` percent, then
    `Done: 12 imported, 0 skipped.` Errors post `Failed: <reason>` and exit
    non-zero, so a failure is never silent.
+
+## Troubleshooting
+
+- **"no SD card found: no volume under /Volumes has a DCIM folder"** — the card is
+  not mounted or has no `DCIM` folder. Reinsert the card and wait for it to
+  mount, or pass `--card /Volumes/NAME` explicitly.
+- **"another import is already in progress"** — a previous run left a stale
+  `run.lock`. It is cleared automatically when the owner process is gone; if it
+  persists, delete `~/Library/Application Support/SD Photo Downloader/run.lock`.
+- **"config not found"** — run `./install.sh` or create the config manually:
+  `cp config.example ~/.config/sd-photo-downloader/config` and edit it.
+- **"exiftool not found"** — `brew install exiftool`.
+- **App shows "Failed" with no detail (older builds)** — rebuild with
+  `./build-app.sh install`; current builds print the underlying error.
+- **Videos land in the photo folder** — set `VIDEO_TARGET_DIR` (and optionally
+  `VIDEO_BACKUP_DIR`) in the config.
+- **Card not ejected** — check `EJECT_CARD=yes` and that the path starts with
+  `/Volumes/` (non-volume paths are never ejected).
 
 ## Tests
 
