@@ -555,7 +555,7 @@ bump_counter() {
 HANDED_OVER=no
 
 main() {
-  local c total_copy=0 total_skip=0
+  local c total_copy=0 total_skip=0 total_video_copy=0 total_video_skip=0
 
   cd "$HOME" || true   # cd out of /Volumes so the card can be unmounted
 
@@ -591,12 +591,14 @@ main() {
   c=0
   for SD_PATH in "${CARD_PATHS[@]}"; do
     c=$((c + 1))
-    copy_count=0; skip_count=0
+    copy_count=0; skip_count=0; video_copy=0; video_skip=0
 
     HANDED_OVER=no
     import_card_body
     total_copy=$((total_copy + copy_count))
     total_skip=$((total_skip + skip_count))
+    total_video_copy=$((total_video_copy + video_copy))
+    total_video_skip=$((total_video_skip + video_skip))
     if [ "$HANDED_OVER" = yes ]; then break; fi
     maybe_eject
   done
@@ -607,13 +609,18 @@ main() {
     progress "done" "stopped, a newer instance took over"
     return 0
   fi
-  log "Done: $total_copy imported, $total_skip already present."
+  video_note=""
+  if [ "$total_video_copy" -gt 0 ] || [ "$total_video_skip" -gt 0 ]; then
+    vplural="s"; [ "$total_video_copy" -eq 1 ] && vplural=""
+    video_note=" ($total_video_copy video$vplural imported, $total_video_skip skipped)"
+  fi
+  log "Done: $total_copy imported, $total_skip already present.$video_note"
   if [ "$DRY_RUN" = yes ]; then
     log "DRY RUN - no files were written."
-    progress "done" "$total_copy would import, $total_skip skipped (dry run)"
+    progress "done" "$total_copy would import, $total_skip skipped (dry run)$video_note"
   else
-    progress "done" "$total_copy imported, $total_skip skipped"
-    notify "Done: $total_copy imported, $total_skip skipped."
+    progress "done" "$total_copy imported, $total_skip skipped$video_note"
+    notify "Done: $total_copy imported, $total_skip skipped.$video_note"
   fi
 }
 
@@ -801,6 +808,7 @@ import_card_body() {
         if [ "$PROGRESS_TTY" = yes ]; then logf "WARN: name collision, not importing: $name"; else log "WARN: name collision, not importing: $name"; fi
       fi
       skip_count=$((skip_count + 1))
+      [ "$is_video" = yes ] && video_skip=$((video_skip + 1))
       if [ "$PROGRESS_TTY" = yes ]; then logf "skip     (already imported): $name"; else log "skip     (already imported): $name"; fi
       progress_update "$name" skipped; continue
     fi
@@ -813,6 +821,7 @@ import_card_body() {
         prevrel="${prev#*$'\t'}"
         if [ "$prevrel" != "$prev" ] && [ -e "$TARGET_DIR/$prevrel" ]; then
           skip_count=$((skip_count + 1))
+          [ "$is_video" = yes ] && video_skip=$((video_skip + 1))
           if [ "$PROGRESS_TTY" = yes ]; then logf "skip     (already imported and still in library): $name"; else log "skip     (already imported and still in library): $name"; fi
           progress_update "$name" skipped; continue
         fi
@@ -840,6 +849,7 @@ import_card_body() {
       [ -n "$h" ] && printf '%s\t%s\n' "$h" "${target#$target_root/}" >>"$WORK_LEDGER"
     fi
     copy_count=$((copy_count + 1))
+    [ "$is_video" = yes ] && video_copy=$((video_copy + 1))
     progress_update "$name" imported
   done <"$metaf"
 

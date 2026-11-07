@@ -741,6 +741,8 @@ final class Importer {
     private var counters: [String: Int] = [:]
     var copied = 0
     var skipped = 0
+    var videosCopied = 0
+    var videosSkipped = 0
     var handedOver = false
     var total = 0
     var done = 0
@@ -783,13 +785,16 @@ final class Importer {
                                    message: "stopped, a newer instance took over")
             return
         }
-        reporter.log("Done: \(copied) imported, \(skipped) already present.")
+        let videoNote = (videosCopied > 0 || videosSkipped > 0)
+            ? " (\(videosCopied) video\(videosCopied == 1 ? "" : "s") imported, \(videosSkipped) skipped)"
+            : ""
+        reporter.log("Done: \(copied) imported, \(skipped) already present.\(videoNote)")
         reporter.writeProgress(status: "done", percent: 100, done: done, total: total,
-                               message: "\(copied) imported, \(skipped) skipped\(dryRun ? " (dry run)" : "")")
+                               message: "\(copied) imported, \(skipped) skipped\(videoNote)\(dryRun ? " (dry run)" : "")")
         if dryRun {
             reporter.log("DRY RUN - no files were written.")
         } else {
-            reporter.notify("Done: \(copied) imported, \(skipped) skipped.")
+            reporter.notify("Done: \(copied) imported, \(skipped) skipped.\(videoNote)")
         }
         _ = grandTotal
     }
@@ -936,12 +941,14 @@ final class Importer {
                 // with an unrelated file, which would silently drop a photo.
                 if dest.usedCounter { reporter.logPerFile("WARN: name collision, not importing: \(name)") }
                 skipped += 1
+                if cfg.videoExtList.map({ $0.lowercased() }).contains(ext) { videosSkipped += 1 }
                 reporter.logPerFile("skip     (already imported): \(name)")
             } else if let hash = md5Hex(ofFile: path), let previous = ledger[hash],
                       !previous.isEmpty,
                       fm.fileExists(atPath: (cfg.targetDir as NSString).appendingPathComponent(previous)) {
                 // Same content, recorded copy still present: already imported.
                 skipped += 1
+                if cfg.videoExtList.map({ $0.lowercased() }).contains(ext) { videosSkipped += 1 }
                 reporter.logPerFile("skip     (already imported and still in library): \(name)")
             } else {
                 reporter.logPerFile("import   \(name)")
@@ -977,7 +984,7 @@ final class Importer {
                 } else {
                     copied = true
                 }
-                if copied { self.copied += 1 }
+                if copied { self.copied += 1; if cfg.videoExtList.map({ $0.lowercased() }).contains(ext) { self.videosCopied += 1 } }
             }
 
             done = base + index + 1
