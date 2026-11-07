@@ -399,6 +399,7 @@ struct Meta {
     var createDate = ""
     var modifyDate = ""
     var model = ""
+    var deviceModelName = ""
     var make = ""
     var fileName = ""
 }
@@ -410,7 +411,7 @@ func readMetadata(cfg: Config, cardPath: String, exifBatch: Bool, exts: [String]
     if !exifBatch { return readMetadataPerFile(cfg: cfg, cardPath: cardPath, exts: exts) }
     var args = ["-q", "-q", "-json", "-r"]
     for e in exts { args += ["-ext", e] }
-    args += ["-SourceFile", "-DateTimeOriginal", "-CreateDate", "-ModifyDate", "-Model", "-Make", "-FileName", cardPath]
+    args += ["-SourceFile", "-DateTimeOriginal", "-CreateDate", "-ModifyDate", "-Model", "-DeviceModelName", "-Make", "-FileName", cardPath]
 
     let tmp = NSTemporaryDirectory() + "sd-exif-\(UUID().uuidString).json"
     FileManager.default.createFile(atPath: tmp, contents: nil)
@@ -445,6 +446,7 @@ func readMetadata(cfg: Config, cardPath: String, exifBatch: Bool, exts: [String]
         meta.createDate = value("CreateDate")
         meta.modifyDate = value("ModifyDate")
         meta.model = value("Model")
+        meta.deviceModelName = value("DeviceModelName")
         meta.make = value("Make")
         meta.fileName = value("FileName")
         if result[source] == nil { result[source] = meta }
@@ -459,7 +461,7 @@ func readMetadataPerFile(cfg: Config, cardPath: String, exts: [String]) -> [Stri
     // Deliberately not -json: this is the fallback for a batched pass that came
     // back empty, so it must not depend on the same exiftool feature failing.
     // -T prints one tab-separated line per file, in the order asked for.
-    let tags = ["-FileName", "-DateTimeOriginal", "-CreateDate", "-ModifyDate", "-Model", "-Make"]
+    let tags = ["-FileName", "-DateTimeOriginal", "-CreateDate", "-ModifyDate", "-Model", "-DeviceModelName", "-Make"]
     while let item = walker.nextObject() as? String {
         let ext = (item as NSString).pathExtension.lowercased()
         guard !ext.isEmpty, exts.contains(ext) else { continue }
@@ -490,7 +492,8 @@ func readMetadataPerFile(cfg: Config, cardPath: String, exts: [String]) -> [Stri
         meta.createDate = value(2)
         meta.modifyDate = value(3)
         meta.model = value(4)
-        meta.make = value(5)
+        meta.deviceModelName = value(5)
+        meta.make = value(6)
         if result[full] == nil { result[full] = meta }
     }
     return result
@@ -956,7 +959,8 @@ final class Importer {
                         // Ledger and counter only move forward on a real copy,
                         // and the ledger is independent of BACKUP_DIR.
                         if let hash = md5Hex(ofFile: path) {
-                            let relative = String(target.dropFirst(cfg.targetDir.count + 1))
+                            var relative = String(target.dropFirst(cfg.targetDir.count))
+                            while relative.hasPrefix("/") { relative.removeFirst() }
                             appendLedger(hash, relativePath: relative)
                         }
                         if dest.usedCounter { bumpCounter(dest.counterKey, to: dest.counterValue + 1) }
@@ -997,7 +1001,7 @@ final class Importer {
     private func destination(for path: String, meta: Meta) -> Destination {
         let ext = (path as NSString).pathExtension.lowercased()
         let date = resolveDate(for: path, meta: meta)
-        let model = !meta.model.isEmpty ? meta.model : meta.make
+        let model = !meta.model.isEmpty ? meta.model : (!meta.deviceModelName.isEmpty ? meta.deviceModelName : meta.make)
         let token = sanitizeToken(model)
         let key = cfg.counterPerModel ? token : "ALL"
 
@@ -1031,6 +1035,11 @@ final class Importer {
             let ext = (item as NSString).pathExtension.lowercased()
             guard !ext.isEmpty, exts.contains(ext) else { continue }
             let full = (root as NSString).appendingPathComponent(item)
+            // Skip ignored directories (RPD ignored_paths): .Trash, .thumbnails,
+            // THMBNL, __MACOSX, Screenshots, and AVCHD/BDMV intermediates.
+            let ignoredDirs: Set<String> = [".Trash", ".thumbnails", "THMBNL", "__MACOSX", "Screenshots", "BDMV"]
+            let comps = Set((item as NSString).pathComponents)
+            if !comps.isDisjoint(with: ignoredDirs) { continue }
             var isDir: ObjCBool = false
             guard fm.fileExists(atPath: full, isDirectory: &isDir), !isDir.boolValue else { continue }
             results.append(full)

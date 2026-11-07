@@ -452,7 +452,7 @@ JSON_TSV_PY='
 import json, sys
 
 KEYS = ("SourceFile", "DateTimeOriginal", "CreateDate", "ModifyDate",
-        "Model", "Make", "FileName")
+        "Model", "DeviceModelName", "Make", "FileName")
 MISSING = "-"
 
 def first(value):
@@ -638,7 +638,12 @@ import_card_body() {
 
   # Materialize the list so we know the total and can render a real progress bar.
   local listf="$WORK_STATE/filelist"
-  find "$SD_PATH" -type f "${name_args[@]}" 2>/dev/null | sort >"$listf"
+  # Prune ignored directories (RPD ignored_paths): .Trash, .thumbnails, THMBNL,
+  # __MACOSX, Screenshots, BDMV (AVCHD intermediates).
+  find "$SD_PATH" \
+    \( -type d \( -name ".Trash" -o -name ".thumbnails" -o -name "THMBNL" \
+                  -o -name "__MACOSX" -o -name "Screenshots" -o -name "BDMV" \) -prune \) -o \
+    -type f \( "${name_args[@]}" \) -print 2>/dev/null | sort >"$listf"
   total="$(grep -c '' "$listf" 2>/dev/null)"; [ -n "$total" ] || total=0
   TOTAL="$total"
   log "Found $total file(s)."
@@ -652,7 +657,7 @@ import_card_body() {
     for e in $PHOTO_EXTS $VIDEO_EXTS; do tag_args+=(-ext "$e"); done
     log "Reading metadata in one pass..."
     "$EXIFTOOL" -q -q -json "${tag_args[@]}" \
-      -SourceFile -DateTimeOriginal -CreateDate -ModifyDate -Model -Make \
+      -SourceFile -DateTimeOriginal -CreateDate -ModifyDate -Model -DeviceModelName -Make \
       -FileName "$SD_PATH" 2>/dev/null | json_to_tsv "$metaf"
   fi
   # If batching is off, python3 is missing, or exiftool failed, fall back to
@@ -660,14 +665,15 @@ import_card_body() {
   if [ ! -s "$metaf" ] && [ "$total" -gt 0 ]; then
     [ "$EXIF_BATCH" = yes ] && log "WARN: batch metadata unavailable; falling back to per-file reads."
     log "Reading metadata file by file..."
-    local bf d mdl mk fn
+    local bf d mdl devmdl mk fn
     while IFS= read -r bf; do
       [ -n "$bf" ] || continue
       d="$(exif_datetime "$bf" 2>/dev/null)"; [ -n "$d" ] || d="-"
       mdl="$(exif_field Model "$bf")"; [ -n "$mdl" ] || mdl="-"
+      devmdl="$(exif_field DeviceModelName "$bf")"; [ -n "$devmdl" ] || devmdl="-"
       mk="$(exif_field Make "$bf")"; [ -n "$mk" ] || mk="-"
       fn="$(exif_field FileName "$bf")"; [ -n "$fn" ] || fn="-"
-      printf '%s\t%s\t-\t-\t%s\t%s\t%s\n' "$bf" "$d" "$mdl" "$mk" "$fn" >>"$metaf"
+      printf '%s\t%s\t-\t-\t%s\t%s\t%s\t%s\n' "$bf" "$d" "$mdl" "$devmdl" "$mk" "$fn" >>"$metaf"
     done <"$listf"
   fi
 
@@ -679,7 +685,7 @@ import_card_body() {
   if [ -s "$leftover" ]; then
     log "WARN: $(grep -c '' "$leftover") file(s) unreadable by exiftool; using file dates."
     while IFS= read -r lf; do
-      [ -n "$lf" ] && printf '%s\t-\t-\t-\t-\t-\t-\n' "$lf" >>"$metaf"
+      [ -n "$lf" ] && printf '%s\t-\t-\t-\t-\t-\t-\t-\n' "$lf" >>"$metaf"
     done <"$leftover"
   fi
 
@@ -692,7 +698,7 @@ import_card_body() {
   [ "$PROGRESS_BAR" = yes ] && [ -t 1 ] && PROGRESS_TTY=yes
 
   # $2..$7 are the pre-read metadata fields (see json_to_tsv columns).
-  while IFS=$'\t' read -r f dt_dto dt_cdt dt_mdt dt_model dt_make dt_fname; do
+  while IFS=$'\t' read -r f dt_dto dt_cdt dt_mdt dt_model dt_devmdl dt_make dt_fname; do
     if takeover_requested; then
       log "Handing over: a newer instance asked me to stop."
       HANDED_OVER=yes
@@ -704,6 +710,7 @@ import_card_body() {
     [ "$dt_cdt" = "-" ] && dt_cdt=""
     [ "$dt_mdt" = "-" ] && dt_mdt=""
     [ "$dt_model" = "-" ] && dt_model=""
+    [ "$dt_devmdl" = "-" ] && dt_devmdl=""
     [ "$dt_make" = "-" ] && dt_make=""
     [ "$dt_fname" = "-" ] && dt_fname=""
     ext="${f##*.}"; ext="$(printf '%s' "$ext" | tr '[:upper:]' '[:lower:]')"
@@ -727,6 +734,7 @@ import_card_body() {
     SUBDIR=""; fmt_subdir "$FOLDER_PATTERN" "$year" "$month" "$day" "$hh" "$min" "$ss"
 
     model="$dt_model"
+    [ -n "$model" ] || model="$dt_devmdl"
     [ -n "$model" ] || model="$dt_make"
     token="$(sanitize_token "$model")"
 
