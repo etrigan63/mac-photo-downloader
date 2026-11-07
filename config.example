@@ -17,10 +17,16 @@
 # created under this directory automatically.
 TARGET_DIR=~/Pictures/SD-Photos
 
+# Where imported videos go. Defaults to TARGET_DIR if unset.
+# VIDEO_TARGET_DIR=~/Movies/SD-Videos
+
 # Optional second destination: files are also copied here under the same
 # date subfolder structure, using the same renamed filenames as TARGET_DIR.
 # Leave empty to disable backup.
 BACKUP_DIR=/Volumes/BackupDrive/Photos
+
+# Optional second destination for videos. Defaults to BACKUP_DIR if unset.
+# VIDEO_BACKUP_DIR=/Volumes/BackupDrive/Videos
 
 # Path to exiftool. If empty/unset, the script checks your PATH first,
 # then /opt/homebrew/bin/exiftool, then /usr/local/bin/exiftool.

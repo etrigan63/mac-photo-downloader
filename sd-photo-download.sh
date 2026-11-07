@@ -33,7 +33,9 @@ CONFIG_FILE="${SD_CARD_DOWNLOADER_CONFIG:-}"
 [ -z "$CONFIG_FILE" ] && CONFIG_FILE="$HOME/Library/Application Support/SD Photo Downloader/config"
 
 TARGET_DIR=""
+VIDEO_TARGET_DIR=""
 BACKUP_DIR=""
+VIDEO_BACKUP_DIR=""
 EXIFTOOL=""
 STATE_DIR=""
 FOLDER_PATTERN="%Y/%Y-%m-%d"
@@ -282,7 +284,9 @@ load_config() {
     val="${val%\'}"; val="${val#\'}"
     case "$key" in
       TARGET_DIR)         TARGET_DIR="$(expand_home "$val")";;
+      VIDEO_TARGET_DIR)   VIDEO_TARGET_DIR="$(expand_home "$val")";;
       BACKUP_DIR)         BACKUP_DIR="$(expand_home "$val")";;
+      VIDEO_BACKUP_DIR)   VIDEO_BACKUP_DIR="$(expand_home "$val")";;
       EXIFTOOL)           EXIFTOOL="$(expand_home "$val")";;
       STATE_DIR)          STATE_DIR="$(expand_home "$val")";;
       FOLDER_PATTERN)     FOLDER_PATTERN="$val";;
@@ -556,8 +560,10 @@ main() {
   cd "$HOME" || true   # cd out of /Volumes so the card can be unmounted
 
   mkdir -p "$STATE_DIR" "$TARGET_DIR" 2>/dev/null
+  [ -n "$VIDEO_TARGET_DIR" ] && mkdir -p "$VIDEO_TARGET_DIR"
   mkdir -p "${LOG_FILE%/*}" 2>/dev/null
   [ -n "$BACKUP_DIR" ] && mkdir -p "$BACKUP_DIR"
+  [ -n "$VIDEO_BACKUP_DIR" ] && mkdir -p "$VIDEO_BACKUP_DIR"
 
   # Default progress file so Shortcuts/other tools can poll import state.
   [ -z "$PROGRESS_FILE" ] && PROGRESS_FILE="$STATE_DIR/progress.txt"
@@ -617,6 +623,7 @@ import_card_body() {
   local token key num numpad name target backup
   local exifnum used_counter prev prevrel
   local total TOTAL=0 DONE_COUNT=0 TOTAL_PCT=0 LAST_NOTIFY_PCT=-1
+  local target_root backup_root is_video ext_lower
 
   # Build find expression from extension lists.
   local name_args=() e
@@ -762,8 +769,29 @@ import_card_body() {
     fi
     name="${token}-${year}${month}${day}-${numpad}.${ext}"
 
-    target="$TARGET_DIR${SUBDIR:+/$SUBDIR}/$name"
-    backup="$BACKUP_DIR${SUBDIR:+/$SUBDIR}/$name"
+    ext_lower="$(printf '%s' "$ext" | tr '[:upper:]' '[:lower:]')"
+    is_video=no
+    for ve in $VIDEO_EXTS; do [ "$ext_lower" = "$ve" ] && is_video=yes && break; done
+
+    if [ "$is_video" = yes ] && [ -n "$VIDEO_TARGET_DIR" ]; then
+      target_root="$VIDEO_TARGET_DIR"
+    else
+      target_root="$TARGET_DIR"
+    fi
+    target="$target_root${SUBDIR:+/$SUBDIR}/$name"
+
+    if [ "$is_video" = yes ] && [ -n "$VIDEO_BACKUP_DIR" ]; then
+      backup_root="$VIDEO_BACKUP_DIR"
+    elif [ -n "$BACKUP_DIR" ]; then
+      backup_root="$BACKUP_DIR"
+    else
+      backup_root=""
+    fi
+    if [ -n "$backup_root" ]; then
+      backup="$backup_root${SUBDIR:+/$SUBDIR}/$name"
+    else
+      backup=""
+    fi
 
     if [ -e "$target" ]; then
       # For EXIF-numbered names the target name is deterministic, so an existing
@@ -804,12 +832,12 @@ import_card_body() {
     if [ "$DRY_RUN" != yes ]; then
       mkdir -p "$(dirname -- "$target")"
       cp -p "$f" "$target"         || log "WARN: copy to target failed for $name"
-      if [ -n "$BACKUP_DIR" ]; then
+      if [ -n "$backup" ]; then
         mkdir -p "$(dirname -- "$backup")"
         [ -e "$backup" ] || cp -p "$f" "$backup" || log "WARN: backup copy failed for $name"
       fi
       [ "$used_counter" = yes ] && bump_counter "$key" "$((num + 1))"
-      [ -n "$h" ] && printf '%s\t%s\n' "$h" "${target#$TARGET_DIR/}" >>"$WORK_LEDGER"
+      [ -n "$h" ] && printf '%s\t%s\n' "$h" "${target#$target_root/}" >>"$WORK_LEDGER"
     fi
     copy_count=$((copy_count + 1))
     progress_update "$name" imported

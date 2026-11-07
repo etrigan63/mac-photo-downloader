@@ -26,7 +26,9 @@ import Foundation
 struct Config {
     var configFile: String = ""
     var targetDir: String = ""
+    var videoTargetDir: String = ""
     var backupDir: String = ""
+    var videoBackupDir: String = ""
     var exiftool: String = ""
     var stateDir: String = ""
     var folderPattern: String = "%Y/%Y-%m-%d"
@@ -102,7 +104,9 @@ func loadConfig(_ cfg: inout Config) throws {
 
         switch key {
         case "TARGET_DIR": cfg.targetDir = expandHome(val, home: NSHomeDirectory())
+        case "VIDEO_TARGET_DIR": cfg.videoTargetDir = expandHome(val, home: NSHomeDirectory())
         case "BACKUP_DIR": cfg.backupDir = expandHome(val, home: NSHomeDirectory())
+        case "VIDEO_BACKUP_DIR": cfg.videoBackupDir = expandHome(val, home: NSHomeDirectory())
         case "EXIFTOOL": cfg.exiftool = expandHome(val, home: NSHomeDirectory())
         case "STATE_DIR": cfg.stateDir = expandHome(val, home: NSHomeDirectory())
         case "FOLDER_PATTERN": cfg.folderPattern = val
@@ -754,6 +758,8 @@ final class Importer {
         try fm.createDirectory(atPath: cfg.stateDir, withIntermediateDirectories: true)
         try fm.createDirectory(atPath: cfg.targetDir, withIntermediateDirectories: true)
         if !cfg.backupDir.isEmpty { try? fm.createDirectory(atPath: cfg.backupDir, withIntermediateDirectories: true) }
+        if !cfg.videoTargetDir.isEmpty { try? fm.createDirectory(atPath: cfg.videoTargetDir, withIntermediateDirectories: true) }
+        if !cfg.videoBackupDir.isEmpty { try? fm.createDirectory(atPath: cfg.videoBackupDir, withIntermediateDirectories: true) }
         try? fm.createDirectory(atPath: cfg.countersDir, withIntermediateDirectories: true)
         loadLedger()
         loadCounters()
@@ -912,13 +918,16 @@ final class Importer {
             let name = dest.name
             let ext = (path as NSString).pathExtension.lowercased()
             let date = resolveDate(for: path, meta: m)
+            let isVideo = cfg.videoExtList.map { $0.lowercased() }.contains(ext)
+            let targetRoot = isVideo && !cfg.videoTargetDir.isEmpty ? cfg.videoTargetDir : cfg.targetDir
+            let backupRoot = isVideo && !cfg.videoBackupDir.isEmpty ? cfg.videoBackupDir : cfg.backupDir
             let subdir = formatSubdir(cfg.folderPattern, date)
             let target = subdir.isEmpty
-                ? (cfg.targetDir as NSString).appendingPathComponent(name)
-                : ((cfg.targetDir as NSString).appendingPathComponent(subdir) as NSString).appendingPathComponent(name)
-            let backup = cfg.backupDir.isEmpty ? nil : ((subdir.isEmpty
-                ? cfg.backupDir
-                : (cfg.backupDir as NSString).appendingPathComponent(subdir)) as NSString).appendingPathComponent(name)
+                ? (targetRoot as NSString).appendingPathComponent(name)
+                : ((targetRoot as NSString).appendingPathComponent(subdir) as NSString).appendingPathComponent(name)
+            let backup = backupRoot.isEmpty ? nil : ((subdir.isEmpty
+                ? backupRoot
+                : (backupRoot as NSString).appendingPathComponent(subdir)) as NSString).appendingPathComponent(name)
 
             var copied = false
             if fm.fileExists(atPath: target) {
