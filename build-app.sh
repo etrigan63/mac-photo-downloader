@@ -1,9 +1,14 @@
 #!/bin/bash
-# build-app.sh [TARGET_APP]
+# build-app.sh [TARGET_APP | install | --install]
 #
 # Builds a native "SD Photo Downloader.app" from sd-photo-download.swift.
 # Launching it (Finder double-click, Stream Deck "Open" action, Shortcuts)
 # imports from the auto-detected card and shows the progress window.
+#
+# With `install` / `--install` as the first argument the bundle is built in a
+# temp directory and then cleanly installed to ~/Applications, replacing any
+# previous copy and refreshing the Launch Services cache (avoids macOS
+# running a stale cached bundle).
 #
 # Requirements: Xcode Command Line Tools (swiftc) and exiftool.
 # The config is read at runtime from, in order:
@@ -18,14 +23,31 @@
 set -euo pipefail
 
 SRC_DIR="$(cd -- "$(dirname -- "$0")" && pwd)"
-APP="${1:-$SRC_DIR/SD Photo Downloader.app}"
 BIN="sd-photo-download"
+INSTALL=0
+
+if [ "${1:-}" = "install" ] || [ "${1:-}" = "--install" ]; then
+    INSTALL=1
+    APP="${HOME}/Applications/SD Photo Downloader.app"
+    shift
+else
+    APP="${1:-$SRC_DIR/SD Photo Downloader.app}"
+    [ $# -gt 0 ] && shift
+fi
 
 command -v swiftc >/dev/null 2>&1 || {
     echo "error: swiftc not found. Install the Xcode Command Line Tools:" >&2
     echo "       xcode-select --install" >&2
     exit 1
 }
+
+# Build into a temp dir first when installing, so a failed compile never
+# clobbers the existing installed bundle.
+if [ "$INSTALL" -eq 1 ]; then
+    BUILD_DIR="$(mktemp -d)"
+    APP="$BUILD_DIR/SD Photo Downloader.app"
+    trap 'rm -rf "$BUILD_DIR"' EXIT
+fi
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
@@ -82,10 +104,27 @@ EOF
 codesign --force --sign - "$APP" >/dev/null 2>&1 || \
     echo "warning: ad-hoc codesign failed; the app may still run locally" >&2
 
-echo "Built $APP"
-echo
-echo "Test it without writing anything:"
-echo "  open -Wn \"$APP\" --args --dry-run --no-eject"
-echo
-echo "In Stream Deck: add an 'Open' action and pick this .app,"
-echo "or copy it into ~/Applications first."
+if [ "$INSTALL" -eq 1 ]; then
+    DEST="$HOME/Applications/SD Photo Downloader.app"
+    echo "Installing to $DEST ..."
+    rm -rf "$DEST"
+    mkdir -p "$HOME/Applications"
+    cp -R "$APP" "$DEST"
+    # Refresh Launch Services so macOS does not run a stale cached bundle.
+    LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+    if [ -x "$LSREGISTER" ]; then
+        "$LSREGISTER" -f "$DEST" >/dev/null 2>&1 || true
+    fi
+    echo "Installed $DEST"
+    echo
+    echo "Test it:"
+    echo "  open -Wn \"$DEST\" --args --dry-run --no-eject"
+else
+    echo "Built $APP"
+    echo
+    echo "Test it without writing anything:"
+    echo "  open -Wn \"$APP\" --args --dry-run --no-eject"
+    echo
+    echo "In Stream Deck: add an 'Open' action and pick this .app,"
+    echo "or copy it into ~/Applications first (or run: ./build-app.sh install)."
+fi
