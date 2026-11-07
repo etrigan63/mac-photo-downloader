@@ -1320,7 +1320,7 @@ func finish(_ error: Error?) {
         }
         if gui {
             DispatchQueue.main.async {
-                guiController?.finish(message: "Failed", isError: true)
+                guiController?.finish(message: "Failed: \(error)", isError: true)
                 guiCountdown(guiLingerSeconds)
             }
         }
