@@ -80,11 +80,31 @@ which is a [Remix Icon](https://remixicon.com/) `sd-card-fill` glyph (Apache
 open -Wn "SD Photo Downloader.app" --args --card /Volumes/NO_NAME --dry-run
 ```
 
-Open the workflow once to register the Quick Action:
+`install.sh` copies the Quick Action to `~/Library/Services/`, which makes it
+appear in Finder's right-click menu. No separate "Install" prompt is needed on
+most macOS versions. After running `./install.sh`:
 
-```sh
-open ~/Library/Services/"SD Photo Downloader.workflow"   # click Install
-```
+1. Right-click a mounted SD card volume in Finder.
+2. Choose **Quick Actions → SD Photo Downloader**.
+
+If it does not appear:
+
+- Log out and back in (or run `killall Finder`) so Finder rescans
+  `~/Library/Services/`.
+- Open the workflow in Automator and save it once:
+  ```sh
+  open -a Automator ~/Library/Services/"SD Photo Downloader.workflow"
+  ```
+  then **File → Save** (⌘S). This registers it with the Services system.
+- As a fallback, install it manually:
+  ```sh
+  cp -R "SD Photo Downloader.workflow" ~/Library/Services/
+  /System/Library/CoreServices/pbs -flush   # refresh the Services cache
+  ```
+- Verify it is registered:
+  ```sh
+  ls ~/Library/Services/ | grep -i "SD Photo"
+  ```
 
 Then right-click your mounted SD card in Finder → *Quick Actions* → *SD Photo
 Downloader*.
