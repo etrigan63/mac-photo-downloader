@@ -1,11 +1,13 @@
 #!/bin/bash
-# install.sh
+# install.sh [--update]
 #
 # Installs SD Photo Downloader for the current user:
 #   * copies sd-photo-download.sh to ~/.config/sd-photo-downloader/
 #   * builds the native sd-photo-download binary there (needs swiftc)
 #   * creates ~/.config/sd-photo-downloader/config from config.example on first run
 #   * copies the Automator Quick Action to ~/Library/Services/
+#
+# With --update: re-copy and rebuild, preserving the existing config.
 #
 # After installing, open the workflow once:
 #   open ~/Library/Services/"SD Photo Downloader.workflow"
@@ -21,6 +23,8 @@ set -euo pipefail
 SRC_DIR="$(cd -- "$(dirname -- "$0")" && pwd)"
 DEST="$HOME/.config/sd-photo-downloader"
 SERVICES="$HOME/Library/Services"
+UPDATE=0
+[ "${1:-}" = "--update" ] && UPDATE=1
 
 mkdir -p "$DEST"
 cp -f "$SRC_DIR/sd-photo-download.sh" "$DEST/"
@@ -56,3 +60,9 @@ echo "  3. Test without writing anything:"
 echo "     $DEST/sd-photo-download.sh --dry-run"
 echo "     $DEST/sd-photo-download --dry-run --gui"
 echo "  4. Optional: build the Stream Deck app with ./build-app.sh"
+
+if [ "$UPDATE" -eq 1 ]; then
+  echo
+  echo "Updating installed app bundle..."
+  "$SRC_DIR/build-app.sh" install
+fi
