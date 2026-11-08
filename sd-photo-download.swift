@@ -29,6 +29,7 @@ struct Config {
     var videoTargetDir: String = ""
     var backupDir: String = ""
     var videoBackupDir: String = ""
+    var renameTemplate: String = "{model}-{date}-{number}"
     var exiftool: String = ""
     var stateDir: String = ""
     var folderPattern: String = "%Y/%Y-%m-%d"
@@ -107,6 +108,7 @@ func loadConfig(_ cfg: inout Config) throws {
         case "VIDEO_TARGET_DIR": cfg.videoTargetDir = expandHome(val, home: NSHomeDirectory())
         case "BACKUP_DIR": cfg.backupDir = expandHome(val, home: NSHomeDirectory())
         case "VIDEO_BACKUP_DIR": cfg.videoBackupDir = expandHome(val, home: NSHomeDirectory())
+        case "RENAME_TEMPLATE": cfg.renameTemplate = val
         case "EXIFTOOL": cfg.exiftool = expandHome(val, home: NSHomeDirectory())
         case "STATE_DIR": cfg.stateDir = expandHome(val, home: NSHomeDirectory())
         case "FOLDER_PATTERN": cfg.folderPattern = val
@@ -1030,7 +1032,17 @@ final class Importer {
         }
         let value = number ?? 0
         let digits = String(format: "%0*d", cfg.counterDigits, value)
-        return Destination(name: "\(token)-\(date.compact)-\(digits).\(ext)",
+        let originalStem = ((path as NSString).lastPathComponent as NSString).deletingPathExtension
+        let template = cfg.renameTemplate.isEmpty ? "{model}-{date}-{number}" : cfg.renameTemplate
+        var name = template
+        name = name.replacingOccurrences(of: "{model}", with: token)
+        name = name.replacingOccurrences(of: "{make}", with: sanitizeToken(meta.make.isEmpty ? model : meta.make))
+        name = name.replacingOccurrences(of: "{date}", with: date.compact)
+        name = name.replacingOccurrences(of: "{number}", with: digits)
+        name = name.replacingOccurrences(of: "{original}", with: originalStem)
+        name = name.replacingOccurrences(of: "{ext}", with: ext)
+        if !name.lowercased().hasSuffix(".\(ext)") { name += ".\(ext)" }
+        return Destination(name: name,
                            usedCounter: usedCounter, counterKey: key, counterValue: value)
     }
 
@@ -1106,6 +1118,7 @@ final class ProgressWindowController {
     private let titleLabel = NSTextField(labelWithString: "Importing…")
     private let countLabel = NSTextField(labelWithString: "")
     private let fileLabel = NSTextField(labelWithString: "")
+    private let reportLabel = NSTextField(wrappingLabelWithString: "")
     private let closeButton = NSButton(title: "Close", target: nil, action: nil)
 
     init() {
@@ -1125,6 +1138,11 @@ final class ProgressWindowController {
         fileLabel.textColor = .tertiaryLabelColor
         fileLabel.lineBreakMode = .byTruncatingMiddle
 
+        reportLabel.font = .systemFont(ofSize: 12)
+        reportLabel.textColor = .labelColor
+        reportLabel.isHidden = true
+        reportLabel.maximumNumberOfLines = 0
+
         bar.style = .bar
         bar.isIndeterminate = false
         bar.minValue = 0
@@ -1135,7 +1153,7 @@ final class ProgressWindowController {
         closeButton.action = #selector(NSApplication.terminate(_:))
         closeButton.isHidden = true
 
-        let stack = NSStackView(views: [titleLabel, bar, countLabel, fileLabel, closeButton])
+        let stack = NSStackView(views: [titleLabel, bar, countLabel, fileLabel, reportLabel, closeButton])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 10
@@ -1165,6 +1183,8 @@ final class ProgressWindowController {
         titleLabel.textColor = .labelColor
         countLabel.stringValue = ""
         fileLabel.stringValue = ""
+        reportLabel.isHidden = true
+        reportLabel.stringValue = ""
         closeButton.isHidden = true
         window.makeKeyAndOrderFront(nil)
     }
@@ -1179,12 +1199,19 @@ final class ProgressWindowController {
             : "Importing…"
     }
 
-    func finish(message: String, isError: Bool) {
+    func finish(message: String, isError: Bool, report: String = "") {
         bar.doubleValue = 1
         titleLabel.stringValue = message
         titleLabel.textColor = isError ? .systemRed : .systemGreen
         countLabel.stringValue = isError ? "" : "You can close this window."
         fileLabel.stringValue = ""
+        if report.isEmpty {
+            reportLabel.isHidden = true
+            reportLabel.stringValue = ""
+        } else {
+            reportLabel.isHidden = false
+            reportLabel.stringValue = report
+        }
         closeButton.isHidden = false
     }
 }
@@ -1313,7 +1340,7 @@ func guiCountdown(_ seconds: Double) {
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: tick)
 }
 
-func finish(_ error: Error?) {
+func finish(_ error: Error?, report: String = "") {
     releaseRunLock()
     if let error {
         if let reporter {
@@ -1327,7 +1354,7 @@ func finish(_ error: Error?) {
         }
         if gui {
             DispatchQueue.main.async {
-                guiController?.finish(message: "Failed: \(error)", isError: true)
+                guiController?.finish(message: "Failed: \(error)", isError: true, report: "\(error)")
                 guiCountdown(guiLingerSeconds)
             }
         }
@@ -1335,7 +1362,7 @@ func finish(_ error: Error?) {
     } else {
         if gui {
             DispatchQueue.main.async {
-                guiController?.finish(message: "Done", isError: false)
+                guiController?.finish(message: "Done", isError: false, report: report)
                 guiCountdown(guiLingerSeconds)
             }
         }
@@ -1368,7 +1395,11 @@ func runImport() {
             ? [try detectCard(cfg: cfg, requested: nil, log: { reporter?.log($0) })]
             : try cardArgs.map { try detectCard(cfg: cfg, requested: $0) }
         try importer.run(cards: resolved)
-        finish(nil)
+        let videoNote = (importer.videosCopied > 0 || importer.videosSkipped > 0)
+            ? "\n\(importer.videosCopied) video\(importer.videosCopied == 1 ? "" : "s") imported, \(importer.videosSkipped) skipped"
+            : ""
+        let report = "Imported: \(importer.copied)\nAlready present: \(importer.skipped)\(videoNote)\nTotal files: \(importer.total)"
+        finish(nil, report: report)
     } catch {
         finish(error)
     }

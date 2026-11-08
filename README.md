@@ -113,6 +113,8 @@ Edit `~/.config/sd-photo-downloader/config` (the format is `KEY=VALUE`, see
 | `VIDEO_BACKUP_DIR` | Optional separate backup destination for videos (defaults to `BACKUP_DIR`) |
 | `EXIFTOOL` | Path to exiftool (auto-detected if blank) |
 | `FOLDER_PATTERN` | Subfolder layout, e.g. `%Y/%Y-%m-%d` or `{YYYY}/{YYYY-MM-DD}` |
+| `RENAME_TEMPLATE` | Filename template: `{model}-{date}-{number}` (tokens: `{model}` `{make}` `{date}` `{number}` `{original}` `{ext}`) |
+| `RENAME_TEMPLATE` | Filename template: `{model}-{date}-{number}`; tokens `{model} {make} {date} {number} {original} {ext}` |
 | `COUNTER_DIGITS` | Zero-padding for the image number (default 4) |
 | `NUMBER_SOURCE` | `exif` (digits before extension in the filename, default) or `counter` (sequential) |
 | `COUNTER_PER_MODEL` | Separate number sequence per camera model (yes/no) |

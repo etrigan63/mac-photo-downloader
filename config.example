@@ -43,6 +43,15 @@ STATE_DIR=~/Library/Application Support/SD Photo Downloader
 #   {YYYY}/{YYYY}-{MM}-{DD}  ->  2026/2026-08-29
 FOLDER_PATTERN=%Y/%Y-%m-%d
 
+# Filename template for imported files. Tokens:
+#   {model}    camera model (sanitized)
+#   {make}     camera make
+#   {date}     YYYYMMDD from EXIF date
+#   {number}   image number (from filename or counter)
+#   {original} original file name without extension
+#   {ext}      file extension
+RENAME_TEMPLATE={model}-{date}-{number}
+
 # Image number is zero-padded to this many digits: 0001, 0002, ...,
 # or 5099 for a shot number already that large.
 COUNTER_DIGITS=4

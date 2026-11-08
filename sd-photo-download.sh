@@ -36,6 +36,7 @@ TARGET_DIR=""
 VIDEO_TARGET_DIR=""
 BACKUP_DIR=""
 VIDEO_BACKUP_DIR=""
+RENAME_TEMPLATE="{model}-{date}-{number}"
 EXIFTOOL=""
 STATE_DIR=""
 FOLDER_PATTERN="%Y/%Y-%m-%d"
@@ -287,6 +288,7 @@ load_config() {
       VIDEO_TARGET_DIR)   VIDEO_TARGET_DIR="$(expand_home "$val")";;
       BACKUP_DIR)         BACKUP_DIR="$(expand_home "$val")";;
       VIDEO_BACKUP_DIR)   VIDEO_BACKUP_DIR="$(expand_home "$val")";;
+      RENAME_TEMPLATE)    RENAME_TEMPLATE="$val";;
       EXIFTOOL)           EXIFTOOL="$(expand_home "$val")";;
       STATE_DIR)          STATE_DIR="$(expand_home "$val")";;
       FOLDER_PATTERN)     FOLDER_PATTERN="$val";;
@@ -774,7 +776,20 @@ import_card_body() {
       numpad="$(printf "%0*d" "$COUNTER_DIGITS" "$num")"
       used_counter=yes
     fi
-    name="${token}-${year}${month}${day}-${numpad}.${ext}"
+    name="$RENAME_TEMPLATE"
+    [ -z "$name" ] && name="{model}-{date}-{number}"
+    orig="$(basename -- "$f")"; orig="${orig%.*}"
+    make_token="$(sanitize_token "$dt_make")"; [ -n "$make_token" ] || make_token="$token"
+    name="${name//\{model\}/$token}"
+    name="${name//\{make\}/$make_token}"
+    name="${name//\{date\}/${year}${month}${day}}"
+    name="${name//\{number\}/$numpad}"
+    name="${name//\{original\}/$orig}"
+    name="${name//\{ext\}/$ext}"
+    case "$name" in
+      *."$ext") ;;
+      *) name="$name.$ext" ;;
+    esac
 
     ext_lower="$(printf '%s' "$ext" | tr '[:upper:]' '[:lower:]')"
     is_video=no
