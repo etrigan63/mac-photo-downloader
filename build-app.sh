@@ -105,10 +105,14 @@ codesign --force --sign - "$APP" >/dev/null 2>&1 || \
     echo "warning: ad-hoc codesign failed; the app may still run locally" >&2
 
 if [ "$INSTALL" -eq 1 ]; then
-    DEST="$HOME/Applications/SD Photo Downloader.app"
+    if [ -w /Applications ]; then
+        DEST="/Applications/SD Photo Downloader.app"
+    else
+        DEST="$HOME/Applications/SD Photo Downloader.app"
+    fi
     echo "Installing to $DEST ..."
     rm -rf "$DEST"
-    mkdir -p "$HOME/Applications"
+    mkdir -p "$(dirname "$DEST")"
     cp -R "$APP" "$DEST"
     # Refresh Launch Services so macOS does not run a stale cached bundle.
     LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
